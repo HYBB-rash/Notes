@@ -552,8 +552,9 @@ if someone’s face or eyes light up, they show pleasure, excitement etc（因�
 ### **pounce (on sth)** 
 
 * The lion crouched ready to pounce. 
+* The hawk pounced on its prey.
 
-* The hawk pounced on its prey. **plunge (into sth)** 
+##  **plunge (into sth)** 
 
 * The order to abandon ship was given and hundreds of people plunged into the icy water. 
 
