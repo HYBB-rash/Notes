@@ -1,0 +1,394 @@
+<!doctype html>
+<html>
+<head>
+<meta charset='UTF-8'><meta name='viewport' content='width=device-width initial-scale=1'>
+<title>7实验七  触发器_模板</title></head>
+<body><h1>实验七 触发器</h1>
+<h2>一、实验目的</h2>
+<p>（1）理解触发器的用途、类型和工作原理</p>
+<p>（2）掌握利用T-SQL语句创建和维护触发器的方法</p>
+<p>（3）掌握利用企业管理器创建、维护触发器的方法</p>
+<h2>二、实验内容</h2>
+<h3>创建after触发器并测试</h3>
+<h4>第一题</h4>
+<p>创建一个在插入时触发的触发器<code>sc_insert</code>,当向<code>sc</code>表插入数据时，须确保插入的学号已在<code>Student</code>表中存在，并且还须确保插入的课程号在<code>Course</code>表中存在；若不存在，则给出相应的提示信息，并取消插入操作，提示信息要求指明插入信息是学号不满足条件还是课程号不满足条件。（注：先取消相关外键）</p>
+<h5>第一题SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>IF EXISTS(SELECT	*
+            FROM	sysobjects
+           WHERE	name = &#39;sc_insert&#39; AND type = &#39;TR&#39;) 
+	BEGIN
+		DROP TRIGGER sc_insert
+		PRINT &#39;已删除&#39;
+	END
+ELSE 
+	BEGIN
+		PRINT &#39;可创建&#39;
+	END
+GO
+CREATE TRIGGER sc_insert
+	ON SC
+	AFTER INSERT
+AS
+	DECLARE @sno VARCHAR(20), @cno VARCHAR(20)
+	SELECT	@sno = Sno, @cno = Cno
+	FROM	INSERTED
+	IF NOT EXISTS(SELECT	*
+	                FROM	Student
+	               WHERE	Sno = @sno)
+		BEGIN
+			ROLLBACK TRAN
+			RAISERROR(&#39;在Student表中不存在&#39;, 16, 10)
+		END
+	IF NOT EXISTS(SELECT	*
+	                FROM	Course
+	               WHERE	Cno = @cno)
+		BEGIN
+			ROLLBACK TRAN
+			RAISERROR (&#39;在Course表中不存在&#39;, 16, 10)
+		END
+GO
+</code></pre>
+<h5>执行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200519113339.png" referrerpolicy="no-referrer" alt="image-20200519113215238"></p>
+<h5>验证</h5>
+<ol start='' >
+<li><p>学号不满足条件</p>
+<pre><code class='language-mssql' lang='mssql'>INSERT
+  INTO	SC(Sno, Cno, Grade)
+VALUES	(&#39;20110050&#39;, &#39;001&#39;, 50);
+</code></pre>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524185757.png" referrerpolicy="no-referrer" alt="image-20200524185757479"></p>
+</li>
+<li><p>课程号不满足条件</p>
+<pre><code class='language-mssql' lang='mssql'>INSERT
+  INTO	SC(Sno, Cno, Grade)
+VALUES	(&#39;20110001&#39;, &#39;050&#39;, 50);
+</code></pre>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524185836.png" referrerpolicy="no-referrer" alt="image-20200524185836219"></p>
+</li>
+<li><p>满足条件</p>
+<pre><code class='language-mssql' lang='mssql'>INSERT
+  INTO	SC(Sno, Cno, Grade)
+VALUES	(&#39;20110003&#39;, &#39;004&#39;, 50)
+</code></pre>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524190011.png" referrerpolicy="no-referrer" alt="image-20200524190011284"></p>
+</li>
+
+</ol>
+<h4>第二题</h4>
+<p>为<code>Course</code>表创建一个触发器<code>Course_del</code>，当删除了<code>Course</code>表中的一条课程信息时，同时将表<code>sc</code>表中相应的学生选课记录删除掉。</p>
+<h5>第二题SQL代码</h5>
+<pre><code class='language-mssql' lang='mssql'>IF EXISTS(SELECT	*
+            FROM	sysobjects
+           WHERE	name = &#39;Course_del&#39; AND type = &#39;TR&#39;)
+	DROP TRIGGER Course_del
+GO
+CREATE TRIGGER Course_del
+	ON Course
+	AFTER DELETE
+AS
+	BEGIN TRANSACTION
+		DECLARE @cno VARCHAR(20)
+		SELECT	@cno = Cno
+		  FROM	DELETED
+		 WHILE	EXISTS(SELECT	*
+		                 FROM	SC
+		                WHERE	Cno = @cno)
+			BEGIN
+				DELETE
+				  FROM	SC
+				 WHERE	Cno = @cno
+			END
+	COMMIT TRANSACTION
+GO
+</code></pre>
+<h5>执行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200519133907.png" referrerpolicy="no-referrer" alt="image-20200519133905834"></p>
+<h5>验证</h5>
+<pre><code class='language-mssql' lang='mssql'>DELETE
+  FROM	Course
+ WHERE	Cno = &#39;009&#39;
+
+DELETE
+  FROM	SC
+ WHERE	Cno = &#39;009&#39;
+</code></pre>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524191024.png" referrerpolicy="no-referrer" alt="image-20200524191024289"></p>
+<pre><code class='language-mssql' lang='mssql'>SELECT	*
+  FROM	SC
+ WHERE	Cno = &#39;009&#39;
+</code></pre>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524191156.png" referrerpolicy="no-referrer" alt="image-20200524191156763"></p>
+<h4>第三题</h4>
+<p>在<code>Course</code>表中添加一个平均成绩<code>avg_Grade</code>字段（记录每门课程的平均成绩），创建一个触发器<code>Grade_modify</code>，当SC表中的某学生的成绩发生变化时，则<code>Course</code>表中的平均成绩也能及时相应的发生改变。</p>
+<h5>第三题SQL</h5>
+<pre><code class='language-mssql' lang='mssql'>IF EXISTS (SELECT	*
+             FROM	sysobjects
+            WHERE	name = &#39;Grade_modify&#39; AND type = &#39;TR&#39;)
+	BEGIN
+		DROP TRIGGER Grade_modify;
+		PRINT &#39;已删除！&#39;
+	END
+PRINT &#39;可以正常建立触发器！&#39;
+GO
+
+CREATE TRIGGER Grade_modify
+	ON SC
+	after INSERT, DELETE, UPDATE
+AS
+	BEGIN TRANSACTION
+		IF UPDATE(Grade)
+			BEGIN
+				UPDATE Course
+				   SET avg_grade = (SELECT	SUM(Grade)/COUNT(*)
+				                      FROM	SC
+				                     WHERE	Course.Cno = SC.Cno)
+				 WHERE Cno IN (SELECT Cno FROM INSERTED)
+			 END
+		 ELSE
+			BEGIN
+				UPDATE	Course
+				   SET	avg_grade = (SELECT	SUM(Grade)/COUNT(*)
+				                       FROM	SC
+				                      WHERE	Course.Cno = SC.Cno)
+			     WHERE	Cno IN (SELECT Cno FROM DELETED)
+			 END
+	COMMIT TRANSACTION
+ GO
+</code></pre>
+<h5>执行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524173923.png" referrerpolicy="no-referrer" alt="image-20200524173921946"></p>
+<h5>验证</h5>
+<pre><code class='language-mssql' lang='mssql'>SELECT	*
+  FROM	Course;
+</code></pre>
+<p>&nbsp;</p>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524191412.png" referrerpolicy="no-referrer" alt="image-20200524191412603"></p>
+<pre><code class='language-mssql' lang='mssql'>INSERT
+  INTO	SC(Sno, Cno, Grade)
+VALUES	(&#39;20110111&#39;, &#39;001&#39;, 100)
+
+INSERT
+  INTO	SC(Sno, Cno, Grade)
+VALUES	(&#39;20110111&#39;, &#39;002&#39;, 100)
+
+INSERT
+  INTO	SC(Sno, Cno, Grade)
+VALUES	(&#39;20110111&#39;, &#39;003&#39;, 100)
+
+SELECT	*
+  FROM	Course;
+</code></pre>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524191832.png" referrerpolicy="no-referrer" alt="image-20200524191832634"></p>
+<h3>创建instead of 触发器并测试</h3>
+<h4>第一题</h4>
+<p>创建一视图<code>Student_view</code>,包含学号、姓名、课程号、课程名、成绩等属性，在<code>Student_view</code>上创建一个触发器<code>Grade_moidfy</code>，当对<code>Student_view</code>中的学生的成绩进行修改时，实际修改的是<code>sc</code>中的相应记录。</p>
+<h5>第一题SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>IF EXISTS (SELECT	*
+             FROM	sysobjects
+            WHERE	name = &#39;student_view&#39; AND type = &#39;v&#39;)
+	BEGIN
+		DROP VIEW student_view;
+		PRINT &#39;已删除！&#39;
+	END
+PRINT &#39;可以正常建立视图！&#39;
+GO
+
+CREATE VIEW student_view
+AS
+	SELECT	Student.Sno, Student.Sname, Course.Cno, Course.Cname, SC.Grade
+	  FROM	SC	JOIN Student ON SC.Sno = Student.Sno
+				JOIN Course  ON SC.Cno = Course.Cno
+	 WHERE	SC.Sno = Student.Sno AND Course.Cno = SC.Cno
+GO
+
+IF EXISTS (SELECT	*
+             FROM	sysobjects
+            WHERE	name = &#39;grade_modify&#39; AND type = &#39;TR&#39;)
+	BEGIN
+		DROP TRIGGER grade_modify;
+		PRINT &#39;已删除！&#39;
+	END
+PRINT &#39;可以正常建立触发器！&#39;
+GO
+
+CREATE TRIGGER grade_modify
+	ON student_view
+	INSTEAD OF UPDATE
+AS
+	BEGIN TRANSACTION
+		DECLARE @grade int, @cno VARCHAR(20), @sno VARCHAR(20)
+		 SELECT	@grade = Grade, @sno = Sno, @cno = Cno
+		   FROM	INSERTED
+		 UPDATE	student_view
+		    SET	Grade = @grade
+	      WHERE	Sno = @sno AND Cno = @cno
+	 COMMIT TRANSACTION
+GO
+</code></pre>
+<p>&nbsp;</p>
+<h4>第二题</h4>
+<p>在SC表中插入一个<code>getcredit</code>字段（记录某学生，所选课程所获学分的情况），创建一个触发器<code>ins_credit</code>，当更改（注：含插入时）<code>SC</code>表中的学生成绩时，如果新成绩大于等于60分，则该生可获得这门课的学分，且该学分须与<code>Course</code>表中的值一致；如果新成绩小于60分，则该生未能获得学分，修改值为0。</p>
+<h5>第二题SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>IF EXISTS (SELECT	*
+             FROM	sysobjects
+            WHERE	name = &#39;ins_credit&#39; AND type = &#39;TR&#39;)
+	BEGIN
+		DROP TRIGGER ins_credit;
+		PRINT &#39;已删除！&#39;
+	END
+PRINT &#39;可以正常建立触发器！&#39;
+GO
+
+CREATE TRIGGER ins_credit
+	ON SC
+	INSTEAD OF UPDATE, DELETE, INSERT
+AS
+	BEGIN TRANSACTION
+		DECLARE @cno VARCHAR(20), @sno VARCHAR(20), @grade TINYINT,
+		        @cno_old VARCHAR(20), @sno_old VARCHAR(20)
+		IF UPDATE(Grade)
+			BEGIN
+				IF NOT EXISTS (SELECT * FROM DELETED)
+					BEGIN
+						SELECT	@cno = Cno, @sno = Sno, @grade = Grade
+						  FROM	INSERTED
+					    INSERT
+						  INTO	SC(Sno, Cno, Grade)
+					    SELECT	Sno, Cno, Grade FROM INSERTED
+						UPDATE	Student
+						   SET	getcredit = (SELECT	COUNT(*) 
+						                       FROM	SC
+						                      WHERE	Grade &gt;= 60 AND Sno = @sno)
+					     WHERE	Sno = @sno
+					END
+				ELSE
+					BEGIN
+						SELECT	@cno = Cno, @sno = Sno, @grade = Grade
+						  FROM	INSERTED
+					    UPDATE	Student
+						   SET	getcredit = (SELECT	COUNT(*) 
+						                       FROM	SC
+						                      WHERE	Grade &gt;= 60 AND Sno = @sno)
+					     WHERE	Sno = @sno
+					END
+			END
+		ELSE
+			BEGIN
+				SELECT	@cno = Cno, @sno = Sno, @grade = Grade
+				  FROM	DELETED
+			    DELETE
+				  FROM	SC
+			     WHERE	Sno = @sno AND Cno = @cno
+			    UPDATE	Student
+				   SET	getcredit = (SELECT	COUNT(*)
+				                       FROM	SC
+				                      WHERE	Grade &gt;= 60 AND Sno = @sno)
+				 WHERE	Sno = @sno
+			END
+	COMMIT TRANSACTION
+GO
+</code></pre>
+<h5>运行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524212517.png" referrerpolicy="no-referrer" alt="image-20200524212517659"></p>
+<h3>使用T-SQL语句管理和维护</h3>
+<h4>第一题</h4>
+<p>用系统存储过程<code>sp_helptrigger</code>查看触发器<code>Grade_modify</code>的相关信息</p>
+<h5>SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>sp_helptrigger SC
+GO
+</code></pre>
+<h5>运行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524213518.png" referrerpolicy="no-referrer" alt="image-20200524213518469"></p>
+<h4>第二题</h4>
+<p>使用系统存储过程<code>sp_helptext</code>查看触发器<code>Grade_modify</code>中的定义内容。</p>
+<h5>SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>sp_helptext grade_modify
+GO
+</code></pre>
+<h5>运行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524213648.png" referrerpolicy="no-referrer" alt="image-20200524213648818"></p>
+<h4>第三题</h4>
+<p>使用<code>select</code>语句查看触发器<code>Grade_modify</code>的定义内容。</p>
+<h5>SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>SELECT	text
+  FROM	syscomments
+ WHERE	text LIKE &#39;%grade_modify%&#39;;
+GO
+</code></pre>
+<h5>运行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524213915.png" referrerpolicy="no-referrer" alt="image-20200524213915767"></p>
+<h4>第四题</h4>
+<p>用系统存储过程<code>sp_depends</code>查看触发器<code>Grade_modify</code>的相关性。</p>
+<h5>SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>sp_depends grade_modify
+GO
+</code></pre>
+<h5>运行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524214055.png" referrerpolicy="no-referrer" alt="image-20200524214055893"></p>
+<h4>第五题</h4>
+<p>将<code>sc_insert</code>触发器改为<code>instead of</code> 触发器，实现的功能不变。</p>
+<h5>SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>IF EXISTS (SELECT	*
+		     FROM	sysobjects
+		    WHERE	name = &#39;ins_credit&#39; AND type = &#39;TR&#39;)
+	DROP TRIGGER ins_credit
+GO
+
+ALTER TRIGGER sc_insert
+	ON SC
+	INSTEAD OF INSERT
+AS
+	DECLARE @sno VARCHAR(20), @cno VARCHAR(20), @grade tinyint
+	 SELECT @sno = Sno, @cno = Cno, @grade = Grade
+	   FROM INSERTED
+	IF NOT EXISTS(SELECT	*
+	                FROM	Student
+				   WHERE	Sno = @sno)
+		BEGIN
+			ROLLBACK TRAN
+			RAISERROR(&#39;学号在Student表中不存在!&#39;, 16, 10)
+		END
+	IF NOT EXISTS(SELECT	*
+	                FROM	Course
+				   WHERE	Cno = @cno)
+		BEGIN
+			ROLLBACK TRAN
+			RAISERROR(&#39;课程号在Course中不存在!&#39;, 16, 10)
+		END
+	INSERT
+	  INTO	SC(Sno, Cno, Grade)
+	VALUES	(@sno, @cno, @grade)
+GO
+	
+</code></pre>
+<h5>运行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524220122.png" referrerpolicy="no-referrer" alt="image-20200524220122693"></p>
+<h4>第六题</h4>
+<p>将触发器<code>sc_insert</code>删除。</p>
+<h5>SQL语句</h5>
+<pre><code class='language-mssql' lang='mssql'>DROP TRIGGER SC_insert
+
+</code></pre>
+<h5>运行结果</h5>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524220246.png" referrerpolicy="no-referrer" alt="image-20200524220246718"></p>
+<h3>使用SQL Server Management Studio管理存储过程</h3>
+<h4>第一题</h4>
+<p>在<code>SQL Server Management Studio</code>中重新创建刚删除的触发器<code>sc_insert</code></p>
+<h5>解答</h5>
+<p>点击新建触发器</p>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524220849.png" referrerpolicy="no-referrer" alt="image-20200524220848963"></p>
+<p>然后再输入即可</p>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524220823.png" referrerpolicy="no-referrer" alt="image-20200524220822977"></p>
+<h4>第二题</h4>
+<p>查看触发器<code>sc_insert</code> 的内容。</p>
+<h5>解答</h5>
+<p>双击触发器即可</p>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524221009.png" referrerpolicy="no-referrer" alt="image-20200524221009158"></p>
+<h4>第三题</h4>
+<p>删除触发器<code>sc_insert</code></p>
+<h5>解答</h5>
+<p>点击删除触发器即可</p>
+<p><img src="https://gitee.com/hybb0430/picture_bed/raw/master/img/20200524221033.png" referrerpolicy="no-referrer" alt="image-20200524221033540"></p>
+</body>
+</html>
